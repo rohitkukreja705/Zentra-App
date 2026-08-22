@@ -1,0 +1,16 @@
+// --- Appended by the CI workflow: wires in the QRing SDK AAR ---
+// Gradle merges repeated `android { }` / `dependencies { }` blocks in the
+// same file, so this is safe to append after whatever `flutter create`
+// generated rather than hand-editing that file.
+
+android {
+    repositories {
+        flatDir {
+            dirs 'libs'
+        }
+    }
+}
+
+dependencies {
+    implementation(name: 'qring_sdk_1.0.0.27', ext: 'aar')
+}

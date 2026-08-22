@@ -1,0 +1,47 @@
+name: app
+description: Zentra - ring companion app.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Runtime permission handling - central to the Bluetooth-connect fix.
+  permission_handler: ^11.3.1
+
+  # Background/foreground service for live workout + ring sync, matches
+  # the foregroundServiceType="connectedDevice" declared in the manifest.
+  flutter_foreground_task: ^8.10.4
+
+  # Small persisted values (last connected ring address, onboarding flags).
+  shared_preferences: ^2.2.2
+
+  # Charts for the live HR / vitals screens.
+  fl_chart: ^0.68.0
+
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # Regenerates every Android mipmap density from a single source image -
+  # run via: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
