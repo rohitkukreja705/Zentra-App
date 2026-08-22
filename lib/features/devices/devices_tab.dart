@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/ble_channel.dart';
 import '../../core/permissions.dart';
@@ -102,7 +103,14 @@ class _DevicesTabState extends State<DevicesTab> {
     try {
       await RingStatsStore.syncBloodPressure();
     } catch (e) {
-      errors.add('blood pressure: $e');
+      final msg = e is PlatformException ? e.message ?? e.code : e.toString();
+      if (msg.toLowerCase().contains('timeout')) {
+        errors.add(
+          'blood pressure: ring didn\'t respond - it may not support blood pressure on this model',
+        );
+      } else {
+        errors.add('blood pressure: $msg');
+      }
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
