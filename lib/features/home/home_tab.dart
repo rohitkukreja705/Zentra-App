@@ -54,55 +54,67 @@ class _HomeTabState extends State<HomeTab> {
         ValueListenableBuilder<RingStats?>(
           valueListenable: RingStatsStore.current,
           builder: (context, stats, _) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 1.15,
+            return ValueListenableBuilder<BloodPressureReading?>(
+              valueListenable: RingStatsStore.bloodPressure,
+              builder: (context, bp, __) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _VitalCard(
-                      label: 'Heart rate',
-                      value: _lastBpm != null ? '$_lastBpm' : '--',
-                      unit: 'bpm',
-                      icon: Icons.favorite,
-                      accent: ZentraColors.danger,
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 1.15,
+                      children: [
+                        _VitalCard(
+                          label: 'Heart rate',
+                          value: _lastBpm != null ? '$_lastBpm' : '--',
+                          unit: 'bpm',
+                          icon: Icons.favorite,
+                          accent: ZentraColors.danger,
+                        ),
+                        _VitalCard(
+                          label: 'Steps',
+                          value: stats != null ? '${stats.steps}' : '--',
+                          unit: 'today',
+                          icon: Icons.directions_walk,
+                          accent: ZentraColors.teal,
+                        ),
+                        _VitalCard(
+                          label: 'Sleep',
+                          value: stats != null ? '${(stats.sleepMinutes / 60).toStringAsFixed(1)}h' : '--',
+                          unit: 'last night',
+                          icon: Icons.bedtime_outlined,
+                          accent: ZentraColors.gold,
+                        ),
+                        _VitalCard(
+                          label: 'Calories',
+                          value: stats != null ? '${stats.calories}' : '--',
+                          unit: 'kcal today',
+                          icon: Icons.bolt_outlined,
+                          accent: ZentraColors.teal,
+                        ),
+                        _VitalCard(
+                          label: 'Blood pressure',
+                          value: bp != null ? '${bp.systolic}/${bp.diastolic}' : '--',
+                          unit: 'mmHg (est.)',
+                          icon: Icons.monitor_heart_outlined,
+                          accent: ZentraColors.gold,
+                        ),
+                      ],
                     ),
-                    _VitalCard(
-                      label: 'Steps',
-                      value: stats != null ? '${stats.steps}' : '--',
-                      unit: 'today',
-                      icon: Icons.directions_walk,
-                      accent: ZentraColors.teal,
-                    ),
-                    _VitalCard(
-                      label: 'Sleep',
-                      value: stats != null ? '${(stats.sleepMinutes / 60).toStringAsFixed(1)}h' : '--',
-                      unit: 'last night',
-                      icon: Icons.bedtime_outlined,
-                      accent: ZentraColors.gold,
-                    ),
-                    _VitalCard(
-                      label: 'Calories',
-                      value: stats != null ? '${stats.calories}' : '--',
-                      unit: 'kcal today',
-                      icon: Icons.bolt_outlined,
-                      accent: ZentraColors.teal,
-                    ),
+                    if (stats == null && bp == null) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No synced data yet - open the Devices tab and tap "Sync ring data".',
+                        style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
+                      ),
+                    ],
                   ],
-                ),
-                if (stats == null) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No synced data yet - open the Devices tab and tap "Sync ring data".',
-                    style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ],
+                );
+              },
             );
           },
         ),

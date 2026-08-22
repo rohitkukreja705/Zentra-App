@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.entity.BleStepTotal
+import com.oudmon.ble.base.communication.entity.BlePressure
 import com.oudmon.ble.base.communication.ICommandResponse
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
@@ -186,6 +187,47 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                     result.error(
                                         "SYNC_FAILED",
                                         errorMsg ?: "Sync failed (code $errorCode) - is the ring connected?",
+                                        null,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
+                "syncBloodPressure" -> {
+                    // Pull-based, same as steps: reads whatever reading(s) the ring
+                    // already took and stored today. Does NOT trigger a fresh
+                    // measurement - that's manualModePressure, which this
+                    // deliberately does not use (see comment above this method).
+                    BleOperateManager.getInstance().getTodayBloodPressure(
+                        object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
+                            override fun onSuccess(t: List<BlePressure>) {
+                                mainHandler.post {
+                                    val latest = t.maxByOrNull { it.time }
+                                    if (latest == null) {
+                                        result.error(
+                                            "NO_DATA",
+                                            "No blood pressure reading recorded today yet - " +
+                                                "take a manual reading on the ring itself first",
+                                            null,
+                                        )
+                                    } else {
+                                        result.success(
+                                            mapOf(
+                                                "systolic" to latest.sbp,
+                                                "diastolic" to latest.dbp,
+                                                "timestampSeconds" to latest.time,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+
+                            override fun onError(errorCode: Int, errorMsg: String?) {
+                                mainHandler.post {
+                                    result.error(
+                                        "SYNC_FAILED",
+                                        errorMsg ?: "Blood pressure sync failed (code $errorCode)",
                                         null,
                                     )
                                 }

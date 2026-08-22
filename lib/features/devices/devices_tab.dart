@@ -93,20 +93,26 @@ class _DevicesTabState extends State<DevicesTab> {
     if (!ok) return;
 
     setState(() => _syncing = true);
+    final errors = <String>[];
     try {
       await RingStatsStore.sync();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Synced today\'s steps, calories, and sleep from your ring.')),
-      );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sync failed: ${e is Exception ? e.toString() : e}')),
-      );
-    } finally {
-      if (mounted) setState(() => _syncing = false);
+      errors.add('steps/sleep/calories: $e');
     }
+    try {
+      await RingStatsStore.syncBloodPressure();
+    } catch (e) {
+      errors.add('blood pressure: $e');
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          errors.isEmpty ? 'Synced today\'s stats from your ring.' : 'Synced with some issues: ${errors.join('; ')}',
+        ),
+      ),
+    );
+    setState(() => _syncing = false);
   }
 
   @override
