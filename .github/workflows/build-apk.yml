@@ -46,7 +46,18 @@ jobs:
           cp android_overlay/app/src/main/kotlin/com/wearables/app/*.kt android/app/src/main/kotlin/com/wearables/app/
           mkdir -p android/app/libs
           cp android_overlay/app/libs/qring_sdk_1.0.0.27.aar android/app/libs/qring_sdk_1.0.0.27.aar
-          cat android_overlay/app/build.gradle.append >> android/app/build.gradle
+
+          # Current Flutter defaults to build.gradle.kts (Kotlin DSL).
+          # Append to whichever one flutter create actually generated -
+          # never create a new one, that's what broke the last build.
+          if [ -f android/app/build.gradle.kts ]; then
+            cat android_overlay/app/build.gradle.kts.append >> android/app/build.gradle.kts
+          elif [ -f android/app/build.gradle ]; then
+            cat android_overlay/app/build.gradle.append >> android/app/build.gradle
+          else
+            echo "Neither build.gradle nor build.gradle.kts found after flutter create" >&2
+            exit 1
+          fi
 
       - name: Ensure gradlew is executable
         run: chmod +x android/gradlew
