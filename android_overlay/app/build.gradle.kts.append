@@ -1,0 +1,9 @@
+// --- Appended by the CI workflow: wires in the QRing SDK AAR ---
+// Kotlin DSL variant - used when flutter create generated
+// build.gradle.kts (current Flutter default). Gradle merges a second
+// `dependencies { }` block in the same file, so this is safe to append
+// rather than hand-editing whatever flutter create generated.
+
+dependencies {
+    implementation(files("libs/qring_sdk_1.0.0.27.aar"))
+}
