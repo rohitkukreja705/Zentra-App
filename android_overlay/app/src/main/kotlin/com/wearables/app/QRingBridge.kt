@@ -170,8 +170,11 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                     result.success(
                                         mapOf(
                                             "steps" to t.totalSteps,
-                                            "calories" to t.calorie,
-                                            "distanceMeters" to t.walkDistance,
+                                            // Raw firmware units, not kcal/meters directly - the
+                                            // vendor's own (commented-out) sample code confirms
+                                            // this: `it.calorie / 1000f` and `it.distance / 1000f`.
+                                            "calories" to t.calorie / 1000.0,
+                                            "distanceMeters" to t.walkDistance / 1000.0,
                                             "sleepMinutes" to t.sleepDuration,
                                         ),
                                     )
