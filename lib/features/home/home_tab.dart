@@ -14,6 +14,7 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   bool _connected = false;
   int? _lastBpm;
+  int? _lastStress;
 
   @override
   void initState() {
@@ -26,7 +27,16 @@ class _HomeTabState extends State<HomeTab> {
           setState(() => _connected = e['state'] == 'connected');
           break;
         case 'heartRate':
-          setState(() => _lastBpm = (e['bpm'] as num).toInt());
+          setState(() {
+            _lastBpm = (e['bpm'] as num).toInt();
+            // Rides along in the same sensor frame as heart rate - a real
+            // value from the ring's own firmware, not calculated in the
+            // app (unlike blood pressure, which was dropped for exactly
+            // that reason - see ring_stats.dart).
+            if (e['stress'] != null) {
+              _lastStress = (e['stress'] as num).toInt();
+            }
+          });
           break;
       }
     });
@@ -54,67 +64,63 @@ class _HomeTabState extends State<HomeTab> {
         ValueListenableBuilder<RingStats?>(
           valueListenable: RingStatsStore.current,
           builder: (context, stats, _) {
-            return ValueListenableBuilder<BloodPressureReading?>(
-              valueListenable: RingStatsStore.bloodPressure,
-              builder: (context, bp, __) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 1.15,
                   children: [
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 1.15,
-                      children: [
-                        _VitalCard(
-                          label: 'Heart rate',
-                          value: _lastBpm != null ? '$_lastBpm' : '--',
-                          unit: 'bpm',
-                          icon: Icons.favorite,
-                          accent: ZentraColors.danger,
-                        ),
-                        _VitalCard(
-                          label: 'Steps',
-                          value: stats != null ? '${stats.steps}' : '--',
-                          unit: 'today',
-                          icon: Icons.directions_walk,
-                          accent: ZentraColors.teal,
-                        ),
-                        _VitalCard(
-                          label: 'Sleep',
-                          value: stats != null ? '${(stats.sleepMinutes / 60).toStringAsFixed(1)}h' : '--',
-                          unit: 'last night',
-                          icon: Icons.bedtime_outlined,
-                          accent: ZentraColors.gold,
-                        ),
-                        _VitalCard(
-                          label: 'Calories',
-                          value: stats != null ? '${stats.calories}' : '--',
-                          unit: 'kcal today',
-                          icon: Icons.bolt_outlined,
-                          accent: ZentraColors.teal,
-                        ),
-                        _VitalCard(
-                          label: 'Blood pressure',
-                          value: bp != null ? '${bp.systolic}/${bp.diastolic}' : '--',
-                          unit: 'mmHg (est.)',
-                          icon: Icons.monitor_heart_outlined,
-                          accent: ZentraColors.gold,
-                        ),
-                      ],
+                    _VitalCard(
+                      label: 'Heart rate',
+                      value: _lastBpm != null ? '$_lastBpm' : '--',
+                      unit: 'bpm',
+                      icon: Icons.favorite,
+                      accent: ZentraColors.danger,
                     ),
-                    if (stats == null && bp == null) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No synced data yet - open the Devices tab and tap "Sync ring data".',
-                        style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
-                      ),
-                    ],
+                    _VitalCard(
+                      label: 'Steps',
+                      value: stats != null ? '${stats.steps}' : '--',
+                      unit: 'today',
+                      icon: Icons.directions_walk,
+                      accent: ZentraColors.teal,
+                    ),
+                    _VitalCard(
+                      label: 'Sleep',
+                      value: stats != null ? '${(stats.sleepMinutes / 60).toStringAsFixed(1)}h' : '--',
+                      unit: 'last night',
+                      icon: Icons.bedtime_outlined,
+                      accent: ZentraColors.gold,
+                    ),
+                    _VitalCard(
+                      label: 'Calories',
+                      value: stats != null ? '${stats.calories}' : '--',
+                      unit: 'kcal today',
+                      icon: Icons.bolt_outlined,
+                      accent: ZentraColors.teal,
+                    ),
+                    _VitalCard(
+                      label: 'Stress',
+                      value: _lastStress != null ? '$_lastStress' : '--',
+                      unit: 'ring reading',
+                      icon: Icons.spa_outlined,
+                      accent: ZentraColors.gold,
+                    ),
                   ],
-                );
-              },
+                ),
+                if (stats == null && _lastStress == null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No synced data yet - open the Devices tab and tap "Sync ring data". '
+                    'Stress and heart rate also need a live session from the Activity tab.',
+                    style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ],
             );
           },
         ),

@@ -75,14 +75,4 @@ class BleChannel {
     }
     return result;
   }
-
-  /// Pulls the most recent blood pressure reading the ring already took
-  /// and stored today. Does not trigger a new measurement.
-  static Future<Map<String, dynamic>> syncBloodPressure() async {
-    final result = await _method.invokeMapMethod<String, dynamic>('syncBloodPressure');
-    if (result == null) {
-      throw PlatformException(code: 'SYNC_FAILED', message: 'No data returned');
-    }
-    return result;
-  }
 }

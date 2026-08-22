@@ -28,9 +28,25 @@ strings revealed (Home / Activity / Devices / Profile).
   This is a pull, not a live stream - the ring counts steps on its own
   hardware and holds the running total; there's no push API for it in the
   SDK the way there is for heart rate, so it needs a manual sync each time
-  you want a fresh number. Historical per-day step/sleep detail
-  (`getStepDetail(dayIndex, ...)`, `getHeartRates(...)`) is in the SDK too
-  but not wired up yet - say the word if you want a history screen.
+  you want a fresh number.
+- A live Stress reading on Home, alongside heart rate - it rides in the
+  same sensor response frame as heart rate (a real byte from the ring's
+  own firmware), so it shows up automatically during a live Activity
+  session, no separate sync needed.
+
+**Deliberately NOT built - blood pressure:** the SDK's blood pressure
+value is generated with `Math.random()` app-side (confirmed in
+`CalcBloodPressureByHeart.java` and `manualModePressure` in the
+decompiled SDK) - not read from any real sensor. I built it, then found
+this, then removed it. Don't re-add it without a real data source behind
+it; displaying it would mean showing users a fabricated number as their
+blood pressure.
+
+Known gap: `sleepMinutes` in the steps sync is usually 0 - confirmed via
+a screen recording of the reference app (QWatch Pro / ring model
+H59MAX_F104) that sleep isn't in the "today totals" bucket at all; it
+lives in a day-indexed historical record (`ReadSleepDetailsReq` in the
+SDK). Not wired up yet.
 
 **What's simplified, on purpose, for reliability:**
 - No Firebase. Push notifications and cloud sync were in your manifest but
