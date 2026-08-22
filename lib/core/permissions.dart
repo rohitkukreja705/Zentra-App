@@ -19,11 +19,17 @@ class BluetoothGate {
     Permission.bluetoothScan,
     Permission.bluetoothConnect,
     Permission.bluetoothAdvertise,
-    // Still required for BLE scan results on Android 6-11 (API 23-30).
-    // permission_handler no-ops this on newer OS versions where it isn't
-    // needed, so it's safe to always include.
-    Permission.locationWhenInUse,
   ];
+
+  // Only actually needed - and only actually declared in the manifest -
+  // on Android 6-11 (API 23-30); the manifest caps ACCESS_FINE/COARSE_
+  // LOCATION at maxSdkVersion 30 since BLUETOOTH_SCAN is flagged
+  // neverForLocation. On Android 12+ this permission isn't requestable at
+  // all and will never report granted, so it must stay best-effort and
+  // never gate ensureGranted()'s success check - that was the bug: this
+  // used to live in _required, which meant the permission gate could
+  // never succeed on Android 12+ no matter what the user actually granted.
+  static const Permission _legacyLocation = Permission.locationWhenInUse;
 
   /// True only if every permission the ring SDK needs is currently granted.
   /// Cheap - call this on screen entry / resume, not just once at pairing,
@@ -36,9 +42,11 @@ class BluetoothGate {
   }
 
   /// Requests anything missing. Returns true only if the user ends up
-  /// granting all of it.
+  /// granting all of the permissions that are actually required (see
+  /// _legacyLocation above for why location is requested but not gated on).
   static Future<bool> ensureGranted() async {
     final statuses = await _required.request();
+    await _legacyLocation.request(); // best-effort, doesn't gate success
     return statuses.values.every((s) => s.isGranted);
   }
 
