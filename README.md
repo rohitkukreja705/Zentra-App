@@ -22,6 +22,15 @@ strings revealed (Home / Activity / Devices / Profile).
   the APK's resources (these aren't compiled like the Dart code is, so
   they came out byte-identical).
 - A working live-HR chart and a foreground-service-backed workout screen.
+- A "Sync ring data" button on Devices that pulls today's step count,
+  calories, distance, and total sleep straight off the ring (via
+  `BleOperateManager.getTodayStepTotal`) and feeds the Home tab's cards.
+  This is a pull, not a live stream - the ring counts steps on its own
+  hardware and holds the running total; there's no push API for it in the
+  SDK the way there is for heart rate, so it needs a manual sync each time
+  you want a fresh number. Historical per-day step/sleep detail
+  (`getStepDetail(dayIndex, ...)`, `getHeartRates(...)`) is in the SDK too
+  but not wired up yet - say the word if you want a history screen.
 
 **What's simplified, on purpose, for reliability:**
 - No Firebase. Push notifications and cloud sync were in your manifest but
