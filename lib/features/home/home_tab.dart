@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/ble_channel.dart';
+import '../../core/ring_stats.dart';
 import '../../core/theme.dart';
 
 class HomeTab extends StatefulWidget {
@@ -50,43 +51,60 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
         const SizedBox(height: 20),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 14,
-          crossAxisSpacing: 14,
-          childAspectRatio: 1.15,
-          children: [
-            _VitalCard(
-              label: 'Heart rate',
-              value: _lastBpm != null ? '$_lastBpm' : '--',
-              unit: 'bpm',
-              icon: Icons.favorite,
-              accent: ZentraColors.danger,
-            ),
-            const _VitalCard(
-              label: 'Steps',
-              value: '--',
-              unit: 'today',
-              icon: Icons.directions_walk,
-              accent: ZentraColors.teal,
-            ),
-            const _VitalCard(
-              label: 'Sleep',
-              value: '--',
-              unit: 'last night',
-              icon: Icons.bedtime_outlined,
-              accent: ZentraColors.gold,
-            ),
-            const _VitalCard(
-              label: 'Recovery',
-              value: '--',
-              unit: 'score',
-              icon: Icons.bolt_outlined,
-              accent: ZentraColors.teal,
-            ),
-          ],
+        ValueListenableBuilder<RingStats?>(
+          valueListenable: RingStatsStore.current,
+          builder: (context, stats, _) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 1.15,
+                  children: [
+                    _VitalCard(
+                      label: 'Heart rate',
+                      value: _lastBpm != null ? '$_lastBpm' : '--',
+                      unit: 'bpm',
+                      icon: Icons.favorite,
+                      accent: ZentraColors.danger,
+                    ),
+                    _VitalCard(
+                      label: 'Steps',
+                      value: stats != null ? '${stats.steps}' : '--',
+                      unit: 'today',
+                      icon: Icons.directions_walk,
+                      accent: ZentraColors.teal,
+                    ),
+                    _VitalCard(
+                      label: 'Sleep',
+                      value: stats != null ? '${(stats.sleepMinutes / 60).toStringAsFixed(1)}h' : '--',
+                      unit: 'last night',
+                      icon: Icons.bedtime_outlined,
+                      accent: ZentraColors.gold,
+                    ),
+                    _VitalCard(
+                      label: 'Calories',
+                      value: stats != null ? '${stats.calories}' : '--',
+                      unit: 'kcal today',
+                      icon: Icons.bolt_outlined,
+                      accent: ZentraColors.teal,
+                    ),
+                  ],
+                ),
+                if (stats == null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No synced data yet - open the Devices tab and tap "Sync ring data".',
+                    style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );

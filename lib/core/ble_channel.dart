@@ -62,4 +62,17 @@ class BleChannel {
   static Future<void> startLiveHeartRate() => _method.invokeMethod('startLiveHeartRate');
 
   static Future<void> stopLiveHeartRate() => _method.invokeMethod('stopLiveHeartRate');
+
+  /// Pulls today's step/calorie/distance/sleep totals stored on the ring.
+  /// This is a pull, not a stream - the ring counts steps on its own
+  /// hardware and holds the running total; there's no live push for this
+  /// in the SDK (unlike heart rate), so this needs to be called whenever
+  /// you want a fresh number, not just once.
+  static Future<Map<String, dynamic>> syncTodayStats() async {
+    final result = await _method.invokeMapMethod<String, dynamic>('syncTodayStats');
+    if (result == null) {
+      throw PlatformException(code: 'SYNC_FAILED', message: 'No data returned');
+    }
+    return result;
+  }
 }

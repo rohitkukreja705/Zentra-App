@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/ble_channel.dart';
 import '../../core/permissions.dart';
+import '../../core/ring_stats.dart';
 import '../../core/theme.dart';
 
 class DevicesTab extends StatefulWidget {
@@ -17,6 +18,7 @@ class _DevicesTabState extends State<DevicesTab> {
   final Map<String, ScannedRing> _found = {};
   StreamSubscription? _sub;
   bool _scanning = false;
+  bool _syncing = false;
   String? _connectingAddress;
   bool _connected = false;
 
@@ -86,6 +88,27 @@ class _DevicesTabState extends State<DevicesTab> {
     }
   }
 
+  Future<void> _sync() async {
+    final ok = await BluetoothGate.ensureGrantedOrPrompt(context);
+    if (!ok) return;
+
+    setState(() => _syncing = true);
+    try {
+      await RingStatsStore.sync();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Synced today\'s steps, calories, and sleep from your ring.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sync failed: ${e is Exception ? e.toString() : e}')),
+      );
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rings = _found.values.toList()..sort((a, b) => b.rssi.compareTo(a.rssi));
@@ -102,6 +125,21 @@ class _DevicesTabState extends State<DevicesTab> {
             style: TextStyle(color: _connected ? ZentraColors.teal : ZentraColors.textSecondary),
           ),
           const SizedBox(height: 20),
+          if (_connected)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: OutlinedButton.icon(
+                onPressed: _syncing ? null : _sync,
+                icon: _syncing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync, color: ZentraColors.teal),
+                label: Text(_syncing ? 'Syncing...' : 'Sync ring data'),
+              ),
+            ),
           ElevatedButton.icon(
             onPressed: _scanning ? null : _startScan,
             icon: _scanning

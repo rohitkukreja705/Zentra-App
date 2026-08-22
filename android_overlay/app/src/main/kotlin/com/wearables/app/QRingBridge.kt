@@ -13,6 +13,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
+import com.oudmon.ble.base.communication.entity.BleStepTotal
 import com.oudmon.ble.base.communication.ICommandResponse
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
@@ -156,6 +157,38 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                 "stopLiveHeartRate" -> {
                     BleOperateManager.getInstance().manualModeHeart(ICommandResponse<StartHeartRateRsp> {}, true)
                     result.success(null)
+                }
+                "syncTodayStats" -> {
+                    // Pull-based: the ring counts steps/sleep on its own hardware and
+                    // stores daily totals - there's no live push stream for this in
+                    // the SDK (unlike heart rate), so "sync" means read-the-stored-
+                    // total, not a continuous feed.
+                    BleOperateManager.getInstance().getTodayStepTotal(
+                        object : BleOperateManager.HealthDataCallback<BleStepTotal> {
+                            override fun onSuccess(t: BleStepTotal) {
+                                mainHandler.post {
+                                    result.success(
+                                        mapOf(
+                                            "steps" to t.totalSteps,
+                                            "calories" to t.calorie,
+                                            "distanceMeters" to t.walkDistance,
+                                            "sleepMinutes" to t.sleepDuration,
+                                        ),
+                                    )
+                                }
+                            }
+
+                            override fun onError(errorCode: Int, errorMsg: String?) {
+                                mainHandler.post {
+                                    result.error(
+                                        "SYNC_FAILED",
+                                        errorMsg ?: "Sync failed (code $errorCode) - is the ring connected?",
+                                        null,
+                                    )
+                                }
+                            }
+                        },
+                    )
                 }
                 else -> result.notImplemented()
             }
