@@ -99,6 +99,11 @@ class _DevicesTabState extends State<DevicesTab> {
     } catch (e) {
       errors.add('steps/sleep/calories: $e');
     }
+    try {
+      await RingStatsStore.syncSpO2();
+    } catch (e) {
+      errors.add('SpO2: $e');
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

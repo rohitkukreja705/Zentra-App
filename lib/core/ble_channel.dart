@@ -75,4 +75,39 @@ class BleChannel {
     }
     return result;
   }
+
+  /// Pulls today's SpO2 reading(s) already stored on the ring. Pull-based,
+  /// same as syncTodayStats - does not trigger a new measurement.
+  static Future<Map<String, dynamic>> syncSpO2() async {
+    final result = await _method.invokeMapMethod<String, dynamic>('syncSpO2');
+    if (result == null) {
+      throw PlatformException(code: 'SYNC_FAILED', message: 'No data returned');
+    }
+    return result;
+  }
+
+  /// One-shot: actively commands the ring to take a fresh heart-rate
+  /// reading right now, waits for the first valid sample (up to ~30s),
+  /// then stops the measurement automatically. Unlike
+  /// startLiveHeartRate/stopLiveHeartRate (continuous stream used by the
+  /// Activity tab), this resolves once with a single result - built for a
+  /// tap-and-wait "check now" button.
+  static Future<Map<String, dynamic>> checkHeartRate() async {
+    final result = await _method.invokeMapMethod<String, dynamic>('checkHeartRate');
+    if (result == null) {
+      throw PlatformException(code: 'CHECK_FAILED', message: 'No data returned');
+    }
+    return result;
+  }
+
+  /// One-shot live HRV measurement - same tap-and-wait shape as
+  /// checkHeartRate. Deliberately not a "today" pull; see QRingBridge.kt
+  /// for why.
+  static Future<Map<String, dynamic>> checkHrv() async {
+    final result = await _method.invokeMapMethod<String, dynamic>('checkHrv');
+    if (result == null) {
+      throw PlatformException(code: 'CHECK_FAILED', message: 'No data returned');
+    }
+    return result;
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auto_sync.dart';
 import '../activity/live_workout_screen.dart';
 import '../devices/devices_tab.dart';
 import '../home/home_tab.dart';
@@ -21,6 +22,20 @@ class _MainShellState extends State<MainShell> {
     DevicesTab(),
     ProfileTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // App-open auto-sync, every 1 minute. See core/auto_sync.dart for
+    // exactly what it does and doesn't cover.
+    AutoSyncController.start();
+  }
+
+  @override
+  void dispose() {
+    AutoSyncController.stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

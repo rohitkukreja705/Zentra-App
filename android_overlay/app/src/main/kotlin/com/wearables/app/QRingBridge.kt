@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.entity.BleStepTotal
+import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
 import com.oudmon.ble.base.communication.ICommandResponse
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
@@ -196,6 +197,107 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                 }
                             }
                         },
+                    )
+                }
+                "syncSpO2" -> {
+                    // Pull-based, same shape as steps: BloodOxygenEntity has clean
+                    // decoded getters (min/max arrays across the day), unlike HRV's
+                    // "today" endpoint which only hands back a raw undecoded byte
+                    // stream - that's why HRV below uses the live-measurement path
+                    // instead.
+                    BleOperateManager.getInstance().getTodayBloodOxygen(
+                        object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
+                            override fun onSuccess(t: BloodOxygenEntity) {
+                                mainHandler.post {
+                                    val maxList = t.maxArray ?: emptyList()
+                                    val minList = t.minArray ?: emptyList()
+                                    if (maxList.isEmpty()) {
+                                        result.error("NO_DATA", "No SpO2 reading recorded today yet", null)
+                                    } else {
+                                        result.success(
+                                            mapOf(
+                                                "latest" to maxList.last(),
+                                                "dayMin" to (minList.minOrNull() ?: maxList.last()),
+                                                "timestampSeconds" to t.unix_time,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+
+                            override fun onError(errorCode: Int, errorMsg: String?) {
+                                mainHandler.post {
+                                    result.error("SYNC_FAILED", errorMsg ?: "SpO2 sync failed (code $errorCode)", null)
+                                }
+                            }
+                        },
+                    )
+                }
+                "checkHeartRate" -> {
+                    // One-shot version of startLiveHeartRate: takes the first valid
+                    // reading, stops the measurement automatically, and resolves
+                    // once - for a tap-and-wait "check now" button rather than the
+                    // continuous stream the Activity tab uses during a workout.
+                    var resolved = false
+                    lateinit var timeoutRunnable: Runnable
+                    timeoutRunnable = Runnable {
+                        if (!resolved) {
+                            resolved = true
+                            BleOperateManager.getInstance().manualModeHeart(ICommandResponse<StartHeartRateRsp> {}, true)
+                            result.error(
+                                "TIMEOUT",
+                                "No heart rate reading within 30s - make sure the ring is worn snugly",
+                                null,
+                            )
+                        }
+                    }
+                    mainHandler.postDelayed(timeoutRunnable, 30000L)
+                    BleOperateManager.getInstance().manualModeHeart(
+                        ICommandResponse<StartHeartRateRsp> { rsp ->
+                            if (!resolved && rsp.errCode.toInt() == 0 && rsp.heartRate > 0) {
+                                resolved = true
+                                mainHandler.removeCallbacks(timeoutRunnable)
+                                BleOperateManager.getInstance().manualModeHeart(ICommandResponse<StartHeartRateRsp> {}, true)
+                                mainHandler.post {
+                                    result.success(mapOf("bpm" to rsp.heartRate, "stress" to rsp.stress))
+                                }
+                            }
+                        },
+                        false,
+                    )
+                }
+                "checkHrv" -> {
+                    // Deliberately uses manualModeHrv (live measurement), not
+                    // getTodayHrv (raw undecoded array) - grounded in the vendor
+                    // sample's own HrvActivity.kt, including its exact getHrv()/
+                    // getValue() fallback.
+                    var resolved = false
+                    lateinit var timeoutRunnable: Runnable
+                    timeoutRunnable = Runnable {
+                        if (!resolved) {
+                            resolved = true
+                            BleOperateManager.getInstance().manualModeHrv(ICommandResponse<StartHeartRateRsp> {}, true)
+                            result.error(
+                                "TIMEOUT",
+                                "No HRV reading within 30s - make sure the ring is worn snugly",
+                                null,
+                            )
+                        }
+                    }
+                    mainHandler.postDelayed(timeoutRunnable, 30000L)
+                    BleOperateManager.getInstance().manualModeHrv(
+                        ICommandResponse<StartHeartRateRsp> { rsp ->
+                            val value = if (rsp.hrv > 0) rsp.hrv else rsp.value
+                            if (!resolved && rsp.errCode.toInt() == 0 && value > 0) {
+                                resolved = true
+                                mainHandler.removeCallbacks(timeoutRunnable)
+                                BleOperateManager.getInstance().manualModeHrv(ICommandResponse<StartHeartRateRsp> {}, true)
+                                mainHandler.post {
+                                    result.success(mapOf("hrvMs" to value))
+                                }
+                            }
+                        },
+                        false,
                     )
                 }
                 else -> result.notImplemented()

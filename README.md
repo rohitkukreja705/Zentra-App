@@ -33,6 +33,35 @@ strings revealed (Home / Activity / Devices / Profile).
   same sensor response frame as heart rate (a real byte from the ring's
   own firmware), so it shows up automatically during a live Activity
   session, no separate sync needed.
+- **"Check now" heart rate button** on Home (hero card at the top) - a
+  genuine one-shot: taps `manualModeHeart`, waits up to 30s for the first
+  valid reading, stops the measurement automatically, resolves once.
+  Different from the Activity tab's continuous stream on purpose.
+- **SpO2**, pulled the same way as steps (`getTodayBloodOxygen`) - clean
+  decoded getters, included in both the Devices "Sync ring data" button
+  and the 1-minute auto-sync.
+- **HRV**, via a one-shot live measurement (`manualModeHrv`) with a
+  "check" icon inline on its Home card - deliberately NOT pulled from
+  `getTodayHrv()`, which only returns a raw undecoded byte array with no
+  documented format anywhere in the SDK or sample app. Grounded instead in
+  the vendor sample's own `HrvActivity.kt`, including its exact
+  `getHrv() > 0 ? getHrv() : getValue()` fallback.
+- **Auto-sync every 1 minute**, app-open only (started/stopped with
+  `MainShell`'s lifecycle). Only covers the cheap pull-based reads (steps/
+  calories/sleep/SpO2) - heart rate, stress, and HRV stay manual/tap-to-
+  check, since those need an active ~30s PPG measurement each time, not a
+  free background read. Fails silently per cycle (no error toasts) since
+  it's a convenience refresh, not a user-initiated action.
+- **Today's heart-rate zones** donut chart on Home - a count of today's
+  spot-check readings per zone (Rest/Warm-up/Fat burn/Cardio/Peak, via the
+  standard 220-age estimate), NOT time-in-zone. True time-in-zone needs
+  continuous sampling this app doesn't do.
+- **"Zentra Readiness" score** on Home - clearly labeled as an estimate.
+  This is Zentra's own formula (today's HR + SpO2 + HRV, simple weighted
+  adjustments), not a device reading, and not a real "recovery score" in
+  the Whoop/Oura sense - no multi-day baseline yet, since that needs
+  persisted history across days (shared_preferences is already a
+  dependency but nothing's wired to it yet - natural next step).
 
 **Deliberately NOT built - blood pressure:** the SDK's blood pressure
 value is generated with `Math.random()` app-side (confirmed in

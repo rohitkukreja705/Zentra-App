@@ -6,6 +6,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/ble_channel.dart';
+import '../../core/health_metrics.dart';
 import '../../core/permissions.dart';
 import '../../core/theme.dart';
 
@@ -30,6 +31,13 @@ class _LiveWorkoutScreenState extends State<LiveWorkoutScreen> {
     _sub = BleChannel.events().listen((e) {
       if (!mounted || e['type'] != 'heartRate') return;
       final bpm = (e['bpm'] as num).toInt();
+      // Feed the same shared tracker Home's "Check heart rate" uses, so
+      // today's zone breakdown reflects workout readings too, not just
+      // one-shot checks.
+      HealthMetricsStore.recordHeartRate(bpm);
+      if (e['stress'] != null) {
+        HealthMetricsStore.recordStress((e['stress'] as num).toInt());
+      }
       setState(() {
         _currentBpm = bpm;
         _samples.add(FlSpot(_samples.length.toDouble(), bpm.toDouble()));
