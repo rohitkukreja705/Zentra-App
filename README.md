@@ -71,6 +71,21 @@ this, then removed it. Don't re-add it without a real data source behind
 it; displaying it would mean showing users a fabricated number as their
 blood pressure.
 
+**Important architectural fact - the ring needs its clock set:**
+Day-indexed health queries (`getHeartRate`, `getTodayStepTotal`, etc.) work
+by the *phone* computing a "day start" timestamp and asking the ring for
+data inside that window - they never ask the ring what day it thinks it
+is. If the ring's onboard clock was never synced, that window doesn't
+line up with what the ring actually has stored, and queries silently
+return empty instead of erroring. `QRingBridge` now sends `SetTimeReq(0)`
+via `CommandHandle` as soon as a connection is confirmed, matching what
+the vendor's own sample app does before every single health-feature
+screen (`BaseFunctionActivity.refreshSupportCache()`). This was a real
+bug, not a hardware limitation like blood pressure or manual heart rate -
+confirmed by a reference app (QWatch Pro) showing genuine 5-minute-
+interval heart rate data for today on the exact same physical ring that
+Zentra was getting NO_DATA from.
+
 Known gap: `sleepMinutes` in the steps sync is usually 0 - confirmed via
 a screen recording of the reference app (QWatch Pro / ring model
 H59MAX_F104) that sleep isn't in the "today totals" bucket at all; it
