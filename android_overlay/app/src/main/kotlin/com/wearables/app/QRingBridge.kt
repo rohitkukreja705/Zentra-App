@@ -15,8 +15,11 @@ import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.entity.BleStepTotal
 import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
+import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.ICommandResponse
+import com.oudmon.ble.base.communication.req.SetTimeReq
 import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
+import com.oudmon.ble.base.communication.rsp.SetTimeRsp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
@@ -46,12 +49,34 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
     private val connectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
-                BleAction.BLE_GATT_CONNECTED ->
+                BleAction.BLE_GATT_CONNECTED -> {
                     emit(mapOf("type" to "connectionState", "state" to "connected"))
+                    syncRingClock()
+                }
                 BleAction.BLE_GATT_DISCONNECTED ->
                     emit(mapOf("type" to "connectionState", "state" to "disconnected"))
             }
         }
+    }
+
+    /**
+     * Sets the ring's onboard clock from the phone's current time.
+     * Day-indexed health queries (getHeartRate, getTodayStepTotal, etc.)
+     * work by the PHONE computing a "day start" timestamp and asking the
+     * ring for data inside that window - they never ask the ring what day
+     * it thinks it is. If the ring's clock was never set, that window
+     * doesn't line up with what the ring has stored, so queries come back
+     * empty rather than erroring - which is exactly what syncHeartRate was
+     * doing before this fix, despite real data existing (confirmed via a
+     * reference app's Detail Data screen).
+     *
+     * Grounded in the vendor sample's BaseFunctionActivity.refreshSupportCache(),
+     * which every one of its health-feature screens calls before reading
+     * any data - this replicates that same SetTimeReq(0) call, once per
+     * connection rather than once per screen.
+     */
+    private fun syncRingClock() {
+        CommandHandle.getInstance().executeReqCmd(SetTimeReq(0), ICommandResponse<SetTimeRsp> {})
     }
 
     private val scanCallback = object : ScanWrapperCallback {
