@@ -49,34 +49,12 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
     private val connectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
-                BleAction.BLE_GATT_CONNECTED -> {
+                BleAction.BLE_GATT_CONNECTED ->
                     emit(mapOf("type" to "connectionState", "state" to "connected"))
-                    syncRingClock()
-                }
                 BleAction.BLE_GATT_DISCONNECTED ->
                     emit(mapOf("type" to "connectionState", "state" to "disconnected"))
             }
         }
-    }
-
-    /**
-     * Sets the ring's onboard clock from the phone's current time.
-     * Day-indexed health queries (getHeartRate, getTodayStepTotal, etc.)
-     * work by the PHONE computing a "day start" timestamp and asking the
-     * ring for data inside that window - they never ask the ring what day
-     * it thinks it is. If the ring's clock was never set, that window
-     * doesn't line up with what the ring has stored, so queries come back
-     * empty rather than erroring - which is exactly what syncHeartRate was
-     * doing before this fix, despite real data existing (confirmed via a
-     * reference app's Detail Data screen).
-     *
-     * Grounded in the vendor sample's BaseFunctionActivity.refreshSupportCache(),
-     * which every one of its health-feature screens calls before reading
-     * any data - this replicates that same SetTimeReq(0) call, once per
-     * connection rather than once per screen.
-     */
-    private fun syncRingClock() {
-        CommandHandle.getInstance().executeReqCmd(SetTimeReq(0), ICommandResponse<SetTimeRsp> {})
     }
 
     private val scanCallback = object : ScanWrapperCallback {
@@ -160,6 +138,32 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                 "disconnect" -> {
                     BleOperateManager.getInstance().unBindDevice()
                     result.success(null)
+                }
+                "syncClock" -> {
+                    // Sets the ring's onboard clock from the phone's current time.
+                    // Day-indexed health queries (getHeartRate, getTodayStepTotal,
+                    // etc.) work by the PHONE computing a "day start" timestamp
+                    // and asking the ring for data inside that window - they
+                    // never ask the ring what day it thinks it is. If the ring's
+                    // clock was never set, that window doesn't line up with what
+                    // the ring has stored, so queries come back empty rather than
+                    // erroring. Grounded in the vendor sample's
+                    // BaseFunctionActivity.refreshSupportCache(), which every one
+                    // of its health-feature screens calls before reading data.
+                    //
+                    // Dart-callable and awaited (not fire-and-forget on connect
+                    // like the first version of this fix) so there's no race
+                    // between this completing and a data sync starting - the app
+                    // now explicitly awaits this right after connecting, before
+                    // treating the ring as ready for anything else.
+                    CommandHandle.getInstance().executeReqCmd(
+                        SetTimeReq(0),
+                        ICommandResponse<SetTimeRsp> { rsp ->
+                            mainHandler.post {
+                                result.success(mapOf("status" to rsp.status.toInt()))
+                            }
+                        },
+                    )
                 }
                 "isConnected" -> {
                     result.success(BleOperateManager.getInstance().isConnected)
@@ -254,8 +258,10 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                     if (latestIndex == -1) {
                                         result.error(
                                             "NO_DATA",
-                                            "No heart rate samples yet today - the ring " +
-                                                "auto-samples periodically, give it a few minutes",
+                                            "No heart rate samples yet today (queried from " +
+                                                "utcTime=${t.getmUtcTime()}, arraySize=${samples.size}, " +
+                                                "range=${t.range}min) - the ring auto-samples " +
+                                                "periodically, give it a few minutes",
                                             null,
                                         )
                                     } else {
@@ -296,7 +302,12 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                     val maxList = t.maxArray ?: emptyList()
                                     val minList = t.minArray ?: emptyList()
                                     if (maxList.isEmpty()) {
-                                        result.error("NO_DATA", "No SpO2 reading recorded today yet", null)
+                                        result.error(
+                                            "NO_DATA",
+                                            "No SpO2 reading recorded today (queried from " +
+                                                "unix_time=${t.unix_time}, dateStr=${t.dateStr})",
+                                            null,
+                                        )
                                     } else {
                                         result.success(
                                             mapOf(

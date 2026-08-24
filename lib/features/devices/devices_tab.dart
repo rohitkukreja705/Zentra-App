@@ -33,12 +33,21 @@ class _DevicesTabState extends State<DevicesTab> {
           setState(() => _found[ring.address] = ring);
           break;
         case 'connectionState':
+          final wasConnected = _connected;
           setState(() {
             _connected = e['state'] == 'connected';
             if (_connected || e['state'] == 'disconnected') {
               _connectingAddress = null;
             }
           });
+          if (_connected && !wasConnected) {
+            // Fire-and-forget from this listener's perspective, but it
+            // enters BleChannel's shared queue immediately, ahead of any
+            // user tap or the 1-minute auto-sync timer - so by the time
+            // either of those actually runs, this has already completed.
+            // See BleChannel.syncClock for why this has to happen first.
+            BleChannel.syncClock();
+          }
           break;
       }
     });

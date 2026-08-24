@@ -83,6 +83,14 @@ class BleChannel {
 
   static Future<void> disconnect() => _serialized(() => _method.invokeMethod('disconnect'));
 
+  /// Sets the ring's onboard clock. Must be awaited and completed before
+  /// any day-indexed health query (heart rate, SpO2, steps) will reliably
+  /// return data - see QRingBridge.kt for why. Called once per connection,
+  /// right when the connectionState event fires.
+  static Future<void> syncClock() {
+    return _serialized(() => _method.invokeMapMethod<String, dynamic>('syncClock'));
+  }
+
   static Future<bool> isConnected() {
     return _serialized(() async {
       final ok = await _method.invokeMethod<bool>('isConnected');
