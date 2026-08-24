@@ -109,6 +109,20 @@ class BleChannel {
     });
   }
 
+  /// Pulls the ring's own periodically auto-sampled heart rate (latest
+  /// non-zero reading today). This is the reliable path on hardware where
+  /// manual/on-demand measurement isn't supported - see checkHeartRate
+  /// doc and QRingBridge.kt for why that matters here.
+  static Future<Map<String, dynamic>> syncHeartRate() {
+    return _serialized(() async {
+      final result = await _method.invokeMapMethod<String, dynamic>('syncHeartRate');
+      if (result == null) {
+        throw PlatformException(code: 'SYNC_FAILED', message: 'No data returned');
+      }
+      return result;
+    });
+  }
+
   /// Pulls today's SpO2 reading(s) already stored on the ring. Pull-based,
   /// same as syncTodayStats - does not trigger a new measurement.
   static Future<Map<String, dynamic>> syncSpO2() {
@@ -127,6 +141,10 @@ class BleChannel {
   /// startLiveHeartRate/stopLiveHeartRate (continuous stream used by the
   /// Activity tab), this resolves once with a single result - built for a
   /// tap-and-wait "check now" button.
+  ///
+  /// WARNING: confirmed non-functional on the H59MAX_F104 ring - see the
+  /// matching comment in QRingBridge.kt. Not used by the current UI;
+  /// syncHeartRate is what Home actually calls.
   static Future<Map<String, dynamic>> checkHeartRate() {
     return _serialized(() async {
       final result = await _method.invokeMapMethod<String, dynamic>('checkHeartRate');

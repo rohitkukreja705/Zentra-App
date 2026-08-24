@@ -69,8 +69,17 @@ class HealthMetricsStore {
     lastStress.value = stress;
   }
 
-  /// Actively triggers a fresh ring measurement. Throws on failure/timeout
-  /// - the caller should catch and surface that, not swallow it.
+  /// Pulls the ring's latest periodic heart-rate sample (see
+  /// BleChannel.syncHeartRate) - this is what Home actually uses. Throws
+  /// on failure; the caller should catch and surface that.
+  static Future<void> syncHeartRateNow() async {
+    final raw = await BleChannel.syncHeartRate();
+    recordHeartRate((raw['bpm'] as num).toInt());
+  }
+
+  /// WARNING: confirmed non-functional on the H59MAX_F104 ring - see
+  /// BleChannel.checkHeartRate. Kept in case other hardware supports it;
+  /// not called by the current UI.
   static Future<void> checkHeartRateNow() async {
     final raw = await BleChannel.checkHeartRate();
     recordHeartRate((raw['bpm'] as num).toInt());

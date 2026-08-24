@@ -16,6 +16,7 @@ import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.entity.BleStepTotal
 import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
 import com.oudmon.ble.base.communication.ICommandResponse
+import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
@@ -199,6 +200,64 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                         },
                     )
                 }
+                "syncHeartRate" -> {
+                    // manualModeHeart (the "checkHeartRate" case below) never
+                    // resolves on this ring model - confirmed both by the ring's
+                    // own capability flag (mSupportManualHeart=false, visible in
+                    // its SetTimeRsp) and by a literal "Manual heart rate is not
+                    // supported" guard already present in a previous app's logs
+                    // for this exact hardware (H59MAX_F104), triggered by that
+                    // same flag before any BLE round-trip even happens. Heart
+                    // rate on this ring is periodically auto-sampled by the
+                    // firmware itself in the background - this pulls that data
+                    // instead, the same pull pattern as steps/SpO2. mHeartRateArray
+                    // is one byte per sample interval (range minutes apart,
+                    // starting at mUtcTime); most slots are 0 (no sample yet),
+                    // so this walks backward for the most recent non-zero one.
+                    BleOperateManager.getInstance().getTodayHeartRate(
+                        object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
+                            override fun onSuccess(t: ReadHeartRateRsp) {
+                                mainHandler.post {
+                                    val samples = t.mHeartRateArray ?: ByteArray(0)
+                                    var latestIndex = -1
+                                    for (i in samples.indices.reversed()) {
+                                        if ((samples[i].toInt() and 0xFF) > 0) {
+                                            latestIndex = i
+                                            break
+                                        }
+                                    }
+                                    if (latestIndex == -1) {
+                                        result.error(
+                                            "NO_DATA",
+                                            "No heart rate samples yet today - the ring " +
+                                                "auto-samples periodically, give it a few minutes",
+                                            null,
+                                        )
+                                    } else {
+                                        val bpm = samples[latestIndex].toInt() and 0xFF
+                                        val timestampSeconds = t.mUtcTime + (latestIndex * t.range * 60)
+                                        result.success(
+                                            mapOf(
+                                                "bpm" to bpm,
+                                                "timestampSeconds" to timestampSeconds,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+
+                            override fun onError(errorCode: Int, errorMsg: String?) {
+                                mainHandler.post {
+                                    result.error(
+                                        "SYNC_FAILED",
+                                        errorMsg ?: "Heart rate sync failed (code $errorCode)",
+                                        null,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
                 "syncSpO2" -> {
                     // Pull-based, same shape as steps: BloodOxygenEntity has clean
                     // decoded getters (min/max arrays across the day), unlike HRV's
@@ -234,6 +293,15 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                     )
                 }
                 "checkHeartRate" -> {
+                    // WARNING: confirmed non-functional on the H59MAX_F104 ring -
+                    // its own capability flag reports mSupportManualHeart=false,
+                    // and a previous app's logs for this exact hardware show an
+                    // explicit "Manual heart rate is not supported" guard
+                    // triggered by that flag before any BLE call is even made.
+                    // Kept here (unused by the current UI) in case a different
+                    // ring model genuinely supports it - syncHeartRate above is
+                    // what Home actually uses today.
+                    //
                     // One-shot version of startLiveHeartRate: takes the first valid
                     // reading, stops the measurement automatically, and resolves
                     // once - for a tap-and-wait "check now" button rather than the

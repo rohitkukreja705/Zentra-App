@@ -50,7 +50,7 @@ class _HomeTabState extends State<HomeTab> {
     return e.toString();
   }
 
-  Future<void> _checkHeartRateNow() async {
+  Future<void> _syncHeartRateNow() async {
     final ok = await BluetoothGate.ensureGrantedOrPrompt(context);
     if (!ok) return;
     if (!_connected) {
@@ -61,7 +61,7 @@ class _HomeTabState extends State<HomeTab> {
     }
     setState(() => _checkingHr = true);
     try {
-      await HealthMetricsStore.checkHeartRateNow();
+      await HealthMetricsStore.syncHeartRateNow();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -166,14 +166,19 @@ class _HomeTabState extends State<HomeTab> {
                             const Text('Heart rate', style: TextStyle(color: Colors.white70, fontSize: 13)),
                             const SizedBox(height: 4),
                             Text(
-                              hr != null ? '$hr bpm' : 'Tap to check',
+                              hr != null ? '$hr bpm' : 'Tap to sync',
                               style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Ring\'s latest reading - not a live measurement',
+                              style: TextStyle(color: Colors.white60, fontSize: 11),
                             ),
                           ],
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: _checkingHr ? null : _checkHeartRateNow,
+                        onPressed: _checkingHr ? null : _syncHeartRateNow,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: ZentraColors.background,
@@ -184,8 +189,8 @@ class _HomeTabState extends State<HomeTab> {
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.favorite, size: 18),
-                        label: Text(_checkingHr ? 'Checking...' : 'Check now'),
+                            : const Icon(Icons.sync, size: 18),
+                        label: Text(_checkingHr ? 'Syncing...' : 'Sync'),
                       ),
                     ],
                   ),
@@ -357,7 +362,7 @@ class _HomeTabState extends State<HomeTab> {
                 if (!hasAnything) ...[
                   const SizedBox(height: 12),
                   const Text(
-                    'No data yet - tap "Check now" above for heart rate, or open the Devices '
+                    'No data yet - tap "Sync" above for heart rate, or open the Devices '
                     'tab and tap "Sync ring data" for steps, sleep, and SpO2.',
                     style: TextStyle(color: ZentraColors.textSecondary, fontSize: 12),
                   ),
