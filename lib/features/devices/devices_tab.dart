@@ -47,6 +47,7 @@ class _DevicesTabState extends State<DevicesTab> {
             // either of those actually runs, this has already completed.
             // See BleChannel.syncClock for why this has to happen first.
             BleChannel.syncClock();
+            BleChannel.enableSpO2AutoSampling();
           }
           break;
       }

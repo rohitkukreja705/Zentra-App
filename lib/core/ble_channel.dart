@@ -91,6 +91,13 @@ class BleChannel {
     return _serialized(() => _method.invokeMapMethod<String, dynamic>('syncClock'));
   }
 
+  /// Enables periodic SpO2 auto-sampling on the ring - unlike heart rate,
+  /// this ring doesn't appear to sample SpO2 automatically out of the box.
+  /// Idempotent; safe to call every connection. See QRingBridge.kt.
+  static Future<void> enableSpO2AutoSampling() {
+    return _serialized(() => _method.invokeMapMethod<String, dynamic>('enableSpO2AutoSampling'));
+  }
+
   static Future<bool> isConnected() {
     return _serialized(() async {
       final ok = await _method.invokeMethod<bool>('isConnected');

@@ -17,12 +17,16 @@ import com.oudmon.ble.base.communication.entity.BleStepTotal
 import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
 import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.ICommandResponse
+import com.oudmon.ble.base.communication.req.BloodOxygenSettingReq
+import com.oudmon.ble.base.communication.req.ReadHeartRateReq
 import com.oudmon.ble.base.communication.req.SetTimeReq
+import com.oudmon.ble.base.communication.rsp.BloodOxygenSettingRsp
 import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.SetTimeRsp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
+import java.util.TimeZone
 import com.oudmon.ble.base.scan.ScanWrapperCallback
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -165,6 +169,23 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                         },
                     )
                 }
+                "enableSpO2AutoSampling" -> {
+                    // The vendor sample's BloodOxygenActivity explicitly writes this
+                    // setting (enable=true, interval=2) before periodic SpO2 data
+                    // becomes available to read - unlike heart rate, which this
+                    // ring appears to auto-sample out of the box. Grounded in
+                    // BloodOxygenActivity.writeBloodOxygenSetting(), which uses the
+                    // identical interval value. Idempotent - harmless to call on
+                    // every connection even if already enabled.
+                    CommandHandle.getInstance().executeReqCmd(
+                        BloodOxygenSettingReq.getWriteInstance(true, 2.toByte()),
+                        ICommandResponse<BloodOxygenSettingRsp> { rsp ->
+                            mainHandler.post {
+                                result.success(mapOf("status" to rsp.status.toInt()))
+                            }
+                        },
+                    )
+                }
                 "isConnected" -> {
                     result.success(BleOperateManager.getInstance().isConnected)
                 }
@@ -230,22 +251,38 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                     )
                 }
                 "syncHeartRate" -> {
-                    // manualModeHeart (the "checkHeartRate" case below) never
-                    // resolves on this ring model - confirmed both by the ring's
-                    // own capability flag (mSupportManualHeart=false, visible in
-                    // its SetTimeRsp) and by a literal "Manual heart rate is not
-                    // supported" guard already present in a previous app's logs
-                    // for this exact hardware (H59MAX_F104), triggered by that
-                    // same flag before any BLE round-trip even happens. Heart
-                    // rate on this ring is periodically auto-sampled by the
-                    // firmware itself in the background - this pulls that data
-                    // instead, the same pull pattern as steps/SpO2. mHeartRateArray
-                    // is one byte per sample interval (range minutes apart,
-                    // starting at mUtcTime); most slots are 0 (no sample yet),
-                    // so this walks backward for the most recent non-zero one.
-                    BleOperateManager.getInstance().getTodayHeartRate(
-                        object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
-                            override fun onSuccess(t: ReadHeartRateRsp) {
+                    // Rewritten after decompiling HFTX AI (a rebrand of the vendor's
+                    // own sample app) directly - its real, working "Data Sync" flow
+                    // (HeartRateActivity.syncHeartRateData()) does NOT call
+                    // getTodayHeartRate()/getHeartRate(dayIndex) at all. It builds
+                    // the request manually with the CURRENT moment as the query
+                    // anchor, not day-start/midnight:
+                    //   val nowTime = System.currentTimeMillis()/1000L + tzOffsetSeconds
+                    //   CommandHandle.getInstance().executeReqCmd(ReadHeartRateReq(nowTime), ...)
+                    // getTodayHeartRate() internally passes getDayStartUnixSeconds(0)
+                    // (midnight) as that same parameter instead - a different query
+                    // this ring's firmware doesn't answer the same way. This is the
+                    // second attempt at this specific bug: the first (clock sync
+                    // alone) was necessary but not sufficient. This replicates the
+                    // exact proven call, not another inference from behavior.
+                    var resolved = false
+                    lateinit var timeoutRunnable: Runnable
+                    timeoutRunnable = Runnable {
+                        if (!resolved) {
+                            resolved = true
+                            result.error("SYNC_FAILED", "Heart rate sync timed out", null)
+                        }
+                    }
+                    mainHandler.postDelayed(timeoutRunnable, 15000L)
+
+                    val offsetSeconds = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000L
+                    val nowTime = System.currentTimeMillis() / 1000L + offsetSeconds
+                    CommandHandle.getInstance().executeReqCmd(
+                        ReadHeartRateReq(nowTime),
+                        ICommandResponse<ReadHeartRateRsp> { t ->
+                            if (!resolved) {
+                                resolved = true
+                                mainHandler.removeCallbacks(timeoutRunnable)
                                 mainHandler.post {
                                     val samples = t.getmHeartRateArray() ?: ByteArray(0)
                                     var latestIndex = -1
@@ -274,16 +311,6 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                             ),
                                         )
                                     }
-                                }
-                            }
-
-                            override fun onError(errorCode: Int, errorMsg: String?) {
-                                mainHandler.post {
-                                    result.error(
-                                        "SYNC_FAILED",
-                                        errorMsg ?: "Heart rate sync failed (code $errorCode)",
-                                        null,
-                                    )
                                 }
                             }
                         },
