@@ -77,14 +77,40 @@ by the *phone* computing a "day start" timestamp and asking the ring for
 data inside that window - they never ask the ring what day it thinks it
 is. If the ring's onboard clock was never synced, that window doesn't
 line up with what the ring actually has stored, and queries silently
-return empty instead of erroring. `QRingBridge` now sends `SetTimeReq(0)`
-via `CommandHandle` as soon as a connection is confirmed, matching what
-the vendor's own sample app does before every single health-feature
-screen (`BaseFunctionActivity.refreshSupportCache()`). This was a real
-bug, not a hardware limitation like blood pressure or manual heart rate -
-confirmed by a reference app (QWatch Pro) showing genuine 5-minute-
-interval heart rate data for today on the exact same physical ring that
-Zentra was getting NO_DATA from.
+return empty instead of erroring. `QRingBridge` sends `SetTimeReq(0)` via
+`CommandHandle` as soon as a connection is confirmed (awaited, not fire-
+and-forget, so it's guaranteed to finish before any sync can run),
+matching what the vendor's own sample app does before every single
+health-feature screen (`BaseFunctionActivity.refreshSupportCache()`).
+Necessary, but for heart rate specifically it turned out **not
+sufficient** - see below.
+
+**Heart rate's real bug, found by decompiling HFTX AI directly:**
+`app-debug-1.apk` (package `com.qcwireless.sdksample`) turned out to be
+the vendor's own sample app, rebranded - meaning its real Kotlin source
+was already sitting in the SDK download (`SDKSample.zip`), not something
+that needed reverse-engineering. Its actual working "Data Sync" flow
+(`HeartRateActivity.syncHeartRateData()`) does not call
+`getTodayHeartRate()`/`getHeartRate(dayIndex)` at all - it builds the
+request directly with the **current moment** as the query anchor
+(`System.currentTimeMillis()/1000 + timezoneOffsetSeconds`), not day-
+start/midnight. `getTodayHeartRate()` internally passes
+`getDayStartUnixSeconds(0)` (midnight) as that same parameter - a
+different query this ring's firmware doesn't answer the same way.
+`syncHeartRate` in `QRingBridge.kt` now replicates the proven call
+(`CommandHandle.executeReqCmd(ReadHeartRateReq(nowTime), ...)`) instead
+of inferring one from behavior. Two fix attempts before this one weren't
+enough - full transparency in the file's comments about why.
+
+**SpO2 - a less certain fix:** the same source revealed
+`BloodOxygenActivity` explicitly writes a settings command
+(`BloodOxygenSettingReq.getWriteInstance(true, interval=2)`) to enable
+periodic auto-sampling before SpO2 data becomes readable - unlike heart
+rate, which this ring seems to sample automatically without being told
+to. `enableSpO2AutoSampling` now sends this once per connection,
+alongside the clock sync. Grounded in real source, but not yet confirmed
+against a working example the way heart rate was - worth specifically
+checking whether this actually resolves SpO2 syncing.
 
 Known gap: `sleepMinutes` in the steps sync is usually 0 - confirmed via
 a screen recording of the reference app (QWatch Pro / ring model
