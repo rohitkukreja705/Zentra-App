@@ -218,7 +218,7 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                         object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
                             override fun onSuccess(t: ReadHeartRateRsp) {
                                 mainHandler.post {
-                                    val samples = t.mHeartRateArray ?: ByteArray(0)
+                                    val samples = t.getmHeartRateArray() ?: ByteArray(0)
                                     var latestIndex = -1
                                     for (i in samples.indices.reversed()) {
                                         if ((samples[i].toInt() and 0xFF) > 0) {
@@ -235,7 +235,7 @@ class QRingBridge(private val context: Context) : MethodChannel.MethodCallHandle
                                         )
                                     } else {
                                         val bpm = samples[latestIndex].toInt() and 0xFF
-                                        val timestampSeconds = t.mUtcTime + (latestIndex * t.range * 60)
+                                        val timestampSeconds = t.getmUtcTime() + (latestIndex * t.range * 60)
                                         result.success(
                                             mapOf(
                                                 "bpm" to bpm,
